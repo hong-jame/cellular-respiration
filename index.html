@@ -131,6 +131,8 @@ header.top{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .btn:active{transform:translateY(0)}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--glass-brd);box-shadow:none}
 .btn.gold{background:linear-gradient(120deg,var(--atp),#ffe89a);box-shadow:0 8px 22px rgba(255,212,81,.4)}
+.btn.nadh{background:linear-gradient(120deg,#4fe3ff,#8ff2ff);box-shadow:0 8px 22px rgba(79,227,255,.35)}
+.btn.fadh{background:linear-gradient(120deg,#3ff09a,#9dffc8);box-shadow:0 8px 22px rgba(63,240,154,.35)}
 .btn:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none}
 .rowbtns{display:flex;gap:9px;flex-wrap:wrap;margin-top:10px;align-items:center;flex:0 0 auto}
 
@@ -372,7 +374,7 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
   <section class="panel" id="panel2">
     <div class="card">
       <h2>3단계 · 전자 전달계와 화학 삼투</h2>
-      <div class="sub">전자를 흘려 H⁺를 막 사이 공간에 축적하고, 가득 차면 화학 삼투로 ATP를 대량 합성합니다.</div>
+      <div class="sub">NADH·FADH₂를 산화시켜 전자를 전달하면 H⁺가 축적됩니다. 전자는 복합체 IV에서 O₂와 결합해 <b>물(H₂O)</b>이 됩니다. 게이지가 차면 화학 삼투로 ATP 대량 합성!</div>
 
       <div class="etcWrap"><canvas id="etc"></canvas></div>
 
@@ -387,7 +389,8 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
         </div>
       </div>
       <div class="etcbtns" style="margin-top:9px">
-        <button class="btn" id="fireE">⚡ 전자 방출</button>
+        <button class="btn nadh" id="fireNADH">🔵 NADH 산화 (복합체 I)</button>
+        <button class="btn fadh" id="fireFADH">🟢 FADH₂ 산화 (복합체 II)</button>
         <button class="btn gold" id="chemio" disabled>🌀 화학 삼투!</button>
         <button class="btn ghost" id="reset3">초기화</button>
       </div>
@@ -799,12 +802,13 @@ const ETC=(function(){
   let vortexActive=false;
   let atpParticles=[];   // ejected ATP
   let shockwaves=[];
+  let waterDrops=[];     // H2O formed at Complex IV
   const H2_MAX=100;
 
   function reset(){
-    electrons=[];protons=[];atpParticles=[];shockwaves=[];
+    electrons=[];protons=[];atpParticles=[];shockwaves=[];waterDrops=[];
     h2level=0;atpMade=0;vortex=0;vortexActive=false;
-    $('#fireE').disabled=false;$('#chemio').disabled=true;
+    $('#fireNADH').disabled=false;$('#fireFADH').disabled=false;$('#chemio').disabled=true;
     updateHud();
     // seed some ambient protons in matrix
     for(let i=0;i<10;i++)spawnProton(memBot + H*0.07 + Math.random()*H*0.28, false);
@@ -814,15 +818,40 @@ const ETC=(function(){
     protons.push({x:px,y,hx:px,hy:y,ph:Math.random()*6,
       space:inSpace,r:PR*(0.85+Math.random()*0.3), glow:Math.random()});
   }
-  function fireElectron(){
+  function fireElectron(source){   // source: 'NADH' (Complex I) or 'FADH2' (Complex II)
     if(started===false)return;
-    Audio2.blip(520,.14,'sine',.16,900);
-    // electron path: enter left, hop complex to complex along membrane
-    const path=[{x:W*0.04,y:eY}];
-    complexes.filter(c=>!c.synthase && !c.matrixSide).forEach(c=>path.push({x:c.x,y:eY}));
-    path.push({x:W*0.72,y:eY+H*0.02});
-    electrons.push({path,seg:0,t:0,speed:.012+Math.random()*.004,
-      trail:[],hue:180+Math.random()*40});
+    const cI  =complexes.find(c=>c.label==='I');
+    const cII =complexes.find(c=>c.matrixSide);
+    const cIII=complexes.find(c=>c.label==='III');
+    const cIV =complexes.find(c=>c.label==='IV');
+    let path, hue;
+    if(source==='FADH2'){
+      // FADH2 → Complex II (no pump) → III → IV → water.  Bypasses Complex I ⇒ one fewer H+ pump.
+      Audio2.blip(400,.14,'sine',.16,660);
+      hue=145;   // green, matches the FADH2 button
+      path=[
+        {x:cII.x,  y:memBot+H*0.03},               // FADH2 donates electrons at Complex II (matrix side)
+        {x:cII.x,  y:eY},                          // electron enters the chain — NO pump here
+        {x:cIII.x, y:eY, pump:true},               // Complex III pumps H+
+        {x:cIV.x,  y:eY, pump:true, water:true},   // Complex IV pumps H+ and forms water
+      ];
+    } else {
+      // NADH → Complex I → III → IV → water.  Three pump sites.
+      Audio2.blip(560,.14,'sine',.16,950);
+      hue=190;   // cyan, matches the NADH button
+      path=[
+        {x:cI.x,   y:memBot+H*0.03},               // NADH donates electrons at Complex I (matrix side)
+        {x:cI.x,   y:eY, pump:true},               // Complex I pumps H+
+        {x:cIII.x, y:eY, pump:true},               // Complex III pumps H+
+        {x:cIV.x,  y:eY, pump:true, water:true},   // Complex IV pumps H+ and forms water
+      ];
+    }
+    electrons.push({path,seg:0,t:0,speed:.012+Math.random()*.004,trail:[],hue,source});
+  }
+  function formWater(cx){ // Complex IV: ½O2 + 2H+ + 2e- → H2O  (electrons end here, not off-screen)
+    waterDrops.push({x:cx+(Math.random()-.5)*22*S, y:memBot+H*0.05,
+      vy:0.35+Math.random()*0.4, life:1, r:PR*1.1+Math.random()*2, wob:Math.random()*6});
+    Audio2.blip(300,.12,'sine',.09,520);
   }
   function pumpAt(cx){ // conduct H+ from the matrix, up through the complex, into the space
     const n=2;
@@ -850,7 +879,7 @@ const ETC=(function(){
   /* ---------- CHEMIOSMOSIS CLIMAX ---------- */
   function chemiosmosis(){
     if(vortexActive||Math.round(h2level)<100)return;
-    vortexActive=true;$('#chemio').disabled=true;$('#fireE').disabled=true;
+    vortexActive=true;$('#chemio').disabled=true;$('#fireNADH').disabled=true;$('#fireFADH').disabled=true;
     Audio2.padStart();setTimeout(()=>Audio2.padRamp(),1400);
     Audio2.whirl();
     toast('🌀 화학 삼투! H⁺가 ATP 합성효소를 통해 기질로 촉진 확산됩니다','info');
@@ -999,18 +1028,35 @@ const ETC=(function(){
         x.fillStyle=`hsl(${e.hue},100%,${60+al*30}%)`;
         x.beginPath();x.arc(t.x,t.y,(1+al*3.5)*S,0,7);x.fill();x.restore();
       }
-      // bright head
-      x.save();x.shadowColor='#eafcff';x.shadowBlur=22*S;
+      // bright head (tinted by the electron source)
+      x.save();x.shadowColor=`hsl(${e.hue},100%,80%)`;x.shadowBlur=22*S;
       x.fillStyle='#eafcff';x.beginPath();x.arc(px,py,4.5*S,0,7);x.fill();
-      x.fillStyle='rgba(120,240,255,.9)';x.font='bold '+F.e+'px Trebuchet MS';x.textAlign='center';
+      x.fillStyle=`hsl(${e.hue},100%,85%)`;x.font='bold '+F.e+'px Trebuchet MS';x.textAlign='center';
       x.fillText('e⁻',px,py-F.e*0.9);x.restore();
-      if(e.t>=1){ // reached a complex -> pump
+      if(e.t>=1){ // reached the next waypoint
         e.seg++;e.t=0;
-        if(e.seg<e.path.length-1){pumpAt(B.x);
-          h2level=clamp(h2level+ (H2_MAX/12) ,0,H2_MAX);updateHud();}
+        const wp=e.path[e.seg];
+        if(wp){
+          if(wp.pump){ pumpAt(wp.x); h2level=clamp(h2level+H2_MAX/12,0,H2_MAX); updateHud(); }
+          if(wp.water){ formWater(wp.x); e.dead=true; }   // electron ends as water, not off-screen
+        }
       }
     }
     electrons=electrons.filter(e=>!e.dead);
+
+    // water droplets (H2O) forming at Complex IV, sinking into the matrix
+    for(const wd of waterDrops){
+      wd.y+=wd.vy; wd.life-=0.006; wd.wob+=0.12;
+      if(wd.life<=0||wd.y>H){wd.dead=true;continue;}
+      x.save();x.globalAlpha=Math.min(1,wd.life*1.6);
+      x.shadowColor='#7fd0ff';x.shadowBlur=10*S;
+      x.fillStyle='rgba(130,205,255,.9)';
+      x.beginPath();x.arc(wd.x+Math.sin(wd.wob)*1.5,wd.y,wd.r,0,7);x.fill();
+      x.fillStyle='rgba(8,26,44,.95)';x.font='bold '+(F.h*0.95)+'px Trebuchet MS';x.textAlign='center';
+      x.fillText('H₂O',wd.x+Math.sin(wd.wob)*1.5,wd.y+F.h*0.34);
+      x.restore();
+    }
+    waterDrops=waterDrops.filter(wd=>!wd.dead);
 
     // ATP particles
     for(const a of atpParticles){
@@ -1090,12 +1136,13 @@ const ETC=(function(){
   return {
     onShow(){ visible=true; if(!started){started=true;layout();reset();} else {layout();} if(!raf)draw(); },
     onHide(){ visible=false; },
-    fire(){fireElectron();},
+    fire(source){fireElectron(source);},
     chem(){chemiosmosis();},
     reset(){reset();}
   };
 })();
-$('#fireE').onclick=ETC.fire;
+$('#fireNADH').onclick=()=>ETC.fire('NADH');
+$('#fireFADH').onclick=()=>ETC.fire('FADH2');
 $('#chemio').onclick=ETC.chem;
 $('#reset3').onclick=ETC.reset;
 
