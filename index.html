@@ -687,6 +687,24 @@ function buildStage2(){
   sizeWheel();
 }
 function nodeInner(nd){return `<div class="nm">${nd.name}</div><div class="cr" style="color:${nd.c}">${nd.cr} · ${nd.kr}</div>`;}
+// byproducts produced by the reaction that FORMS each intermediate (counted as it happens)
+const S2byproduct={
+  citrate:[],                 // 옥살아세트산+아세틸CoA 축합 — 부산물 없음
+  ketoglu:['NADH','CO2'],     // 탈탄산 + 탈수소
+  succinyl:['NADH','CO2'],    // 탈탄산 + 탈수소
+  succinate:['ATP'],          // 기질수준 인산화
+  malate:['FADH2'],           // 탈수소 (FAD)
+  // 말산 → 옥살아세트산 재생(회로 완성): NADH 1개 → completeStage2에서 처리
+};
+const S2tallyId={NADH:'tNADH',FADH2:'tFADH',ATP:'tATP',CO2:'tCO2'};
+const S2bpLabel={NADH:'NADH',FADH2:'FADH₂',ATP:'ATP',CO2:'CO₂'};
+function addTally(name){
+  const el=$('#'+S2tallyId[name]); if(!el)return;
+  el.textContent=(parseInt(el.textContent,10)||0)+1;
+  el.animate([{transform:'scale(1)'},{transform:'scale(1.55)'},{transform:'scale(1)'}],{duration:420});
+  const box=el.closest('.t'); if(box)box.animate([{filter:'brightness(2)'},{filter:'brightness(1)'}],{duration:520});
+  Audio2.tick();
+}
 function dropStage2(el,node){
   if(!node.classList.contains('node'))return;
   const need=node.dataset.accept, got=el.dataset.id;
@@ -701,28 +719,25 @@ function dropStage2(el,node){
   const seg=$(`#spokes path[data-seg="${S2.nodes.findIndex(n=>n.id===got)-1}"]`);
   const seg2=$(`#spokes path[data-seg="${S2.nodes.findIndex(n=>n.id===got)}"]`);
   seg&&seg.classList.add('lit');seg2&&seg2.classList.add('lit');
-  // animated tally
-  bumpTally('tNADH',3);bumpTally('tFADH',1);bumpTally('tATP',1);bumpTally('tCO2',2);
+  // step-specific byproducts: count what THIS reaction actually makes, right when it happens
+  const bp=S2byproduct[got]||[];
+  bp.forEach((b,i)=>setTimeout(()=>addTally(b),i*170));
+  if(got==='succinate')addScore(1,node);          // 기질수준 인산화로 '직접' 생성되는 ATP
+  if(bp.length)toast(nd.kr+' 생성 → '+bp.map(b=>'+'+S2bpLabel[b]).join(' '),'good');
   if(S2.placedCount>=5)completeStage2();
 }
-let tallyTarget={tNADH:0,tFADH:0,tATP:0,tCO2:0};
-function bumpTally(id,per){ // gradually reveal per-turn totals as loop fills (scaled)
-  tallyTarget[id]=Math.round(per*S2.placedCount/5);
-}
 function completeStage2(){
-  // finalize spokes + tally to exact per-turn yields
   $$('#spokes path').forEach(p=>p.classList.add('lit'));
-  animateNum('tNADH',3);animateNum('tFADH',1);animateNum('tATP',1);animateNum('tCO2',2);
+  // 회로 완성: 말산 → 옥살아세트산 재생 단계에서 마지막 NADH 1개 생성
+  addTally('NADH');
   $('#wheelCount').textContent='LOOP!';
   Audio2.good();
   // energy burst ring
   const wc=$('.wheelCenter');wc.animate([{transform:'translate(-50%,-50%) scale(1)'},
     {transform:'translate(-50%,-50%) scale(1.4)'},{transform:'translate(-50%,-50%) scale(1)'}],{duration:700});
-  toast('순환 완성! 옥살아세트산이 재생되어 회로가 계속 돕니다 🔄','good');
-  // TCA 회로가 직접 만드는 ATP는 회로당 1개 (기질 수준 인산화) — NADH·FADH₂는 3단계에서 전환
-  $('#next2').disabled=false;unlock(2);markDone(1);addScore(1);
+  toast('순환 완성! 옥살아세트산 재생 → +NADH, 회로가 계속 돕니다 🔄','good');
+  $('#next2').disabled=false;unlock(2);markDone(1);
 }
-function animateNum(id,to){let n=0;const e=$('#'+id);const iv=setInterval(()=>{n++;e.textContent=n;Audio2.tick();if(n>=to)clearInterval(iv);},150);}
 $('#reset2').onclick=buildStage2;
 $('#next2').onclick=()=>goStage(2);
 
