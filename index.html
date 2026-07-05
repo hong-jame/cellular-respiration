@@ -191,6 +191,8 @@ header.top{display:flex;align-items:center;gap:9px;flex:0 0 auto}
   background:linear-gradient(160deg,rgba(63,240,154,.22),#0b1730)}
 .node .nm{font-weight:bold;font-size:11px;color:var(--ink)}
 .node .cr{font-size:8.5px;font-weight:bold}
+.node .ghost{opacity:.34;font-style:italic}   /* faint hint of the correct answer in an empty slot */
+.node.correct .ghost,.node.fixed .ghost{opacity:1;font-style:normal}
 .wheelCenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
 .wheelCenter .big{font-size:22px;font-weight:bold;color:var(--atp);text-shadow:0 0 20px var(--atp)}
 .wheelCenter .sm{font-size:10px;color:var(--ink-dim);letter-spacing:1px}
@@ -679,7 +681,7 @@ function buildStage2(){
     d.className='node'+(nd.fixed?' fixed':'');d.style.left=x+'%';d.style.top=y+'%';
     d.dataset.accept=nd.id;
     if(nd.fixed){d.dataset.placed='1';d.innerHTML=nodeInner(nd);}
-    else d.innerHTML=`<div class="idx">${i}</div><div class="nm">?</div><div class="cr">빈 자리</div>`;
+    else d.innerHTML=`<div class="idx">${i}</div><div class="nm ghost">${nd.name}</div><div class="cr ghost" style="color:${nd.c}">${nd.cr} · ${nd.kr}</div>`;
     wheel.appendChild(d);
   });
   // pool (shuffled, excluding fixed)
