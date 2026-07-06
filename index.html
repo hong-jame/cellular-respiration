@@ -193,6 +193,10 @@ header.top{display:flex;align-items:center;gap:9px;flex:0 0 auto}
 .node .cr{font-size:8.5px;font-weight:bold}
 .node .ghost{opacity:.34;font-style:italic}   /* faint hint of the correct answer in an empty slot */
 .node.correct .ghost,.node.fixed .ghost{opacity:1;font-style:normal}
+.reactChip{position:absolute;z-index:6;pointer-events:none;font-size:10px;font-weight:bold;white-space:nowrap;
+  padding:4px 9px;border-radius:999px;background:rgba(8,16,34,.92);box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.reactChip.in{color:var(--acetyl);border:1px solid color-mix(in srgb,var(--acetyl) 60%,transparent)}
+.reactChip.out{color:var(--ink-dim);border:1px solid var(--glass-brd)}
 .wheelCenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;pointer-events:none}
 .wheelCenter .big{font-size:22px;font-weight:bold;color:var(--atp);text-shadow:0 0 20px var(--atp)}
 .wheelCenter .sm{font-size:10px;color:var(--ink-dim);letter-spacing:1px}
@@ -668,9 +672,9 @@ function buildStage2(){
     const a1=(i/N)*2*Math.PI-Math.PI/2, a2=((i+1)/N)*2*Math.PI-Math.PI/2;
     const x1=200+Math.cos(a1)*168,y1=200+Math.sin(a1)*168;
     const x2=200+Math.cos(a2)*168,y2=200+Math.sin(a2)*168;
-    const mx=200+Math.cos((a1+a2)/2)*205, my=200+Math.sin((a1+a2)/2)*205;
     const p=document.createElementNS('http://www.w3.org/2000/svg','path');
-    p.setAttribute('d',`M${x1} ${y1} Q ${mx} ${my} ${x2} ${y2}`);
+    // true circular arc (radius 168) → a perfect ring, not a bulged/dented curve
+    p.setAttribute('d',`M${x1} ${y1} A 168 168 0 0 1 ${x2} ${y2}`);
     p.setAttribute('class','spoke');p.dataset.seg=i;svg.appendChild(p);
   }
   // place node holders
@@ -710,6 +714,30 @@ function addTally(name){
   const box=el.closest('.t'); if(box)box.animate([{filter:'brightness(2)'},{filter:'brightness(1)'}],{duration:520});
   Audio2.tick();
 }
+// 옥살아세트산(C₄) + 아세틸 CoA(C₂) → 시트르산(C₆): 아세틸 CoA가 들어가고 CoA가 빠져나옴
+function showCitrateFormation(){
+  const wheel=$('#wheel'), oxaloN=$('#wheel .node[data-accept="oxalo"]'), citN=$('#wheel .node[data-accept="citrate"]');
+  if(!wheel||!oxaloN||!citN)return;
+  const wr=wheel.getBoundingClientRect(), o=oxaloN.getBoundingClientRect(), c=citN.getBoundingClientRect();
+  const ox=o.left-wr.left+o.width/2, oy=o.top-wr.top+o.height/2;
+  const cx=c.left-wr.left+c.width/2, cy=c.top-wr.top+c.height/2;
+  // acetyl-CoA enters: oxaloacetate → citrate
+  const inC=document.createElement('div'); inC.className='reactChip in'; inC.textContent='+ 아세틸 CoA (C₂)';
+  inC.style.left=ox+'px'; inC.style.top=oy+'px'; wheel.appendChild(inC);
+  inC.animate([
+    {transform:'translate(-50%,-50%) scale(.7)',opacity:0},
+    {transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.3},
+    {transform:`translate(calc(-50% + ${cx-ox}px), calc(-50% + ${cy-oy}px)) scale(.9)`,opacity:0}
+  ],{duration:1400,easing:'ease-in-out'}).onfinish=()=>inC.remove();
+  // CoA leaves: released from citrate, drifts outward
+  const outC=document.createElement('div'); outC.className='reactChip out'; outC.textContent='CoA 방출 →';
+  outC.style.left=cx+'px'; outC.style.top=cy+'px'; wheel.appendChild(outC);
+  outC.animate([
+    {transform:'translate(-50%,-50%) scale(.6)',opacity:0},
+    {transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.45},
+    {transform:'translate(calc(-50% + 40px), calc(-50% - 42px)) scale(.85)',opacity:0}
+  ],{duration:1700,delay:600,easing:'ease-out'}).onfinish=()=>outC.remove();
+}
 function dropStage2(el,node){
   if(!node.classList.contains('node'))return;
   const need=node.dataset.accept, got=el.dataset.id;
@@ -728,6 +756,7 @@ function dropStage2(el,node){
   const bp=S2byproduct[got]||[];
   bp.forEach((b,i)=>setTimeout(()=>addTally(b),i*170));
   if(got==='succinate')addScore(1,node);          // 기질수준 인산화로 '직접' 생성되는 ATP
+  if(got==='citrate'){ showCitrateFormation(); toast('옥살아세트산(C₄) + 아세틸 CoA(C₂) → 시트르산(C₆), CoA 방출','info'); }
   if(bp.length)toast(nd.kr+' 생성 → '+bp.map(b=>'+'+S2bpLabel[b]).join(' '),'good');
   if(S2.placedCount>=5)completeStage2();
 }
