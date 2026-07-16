@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>세포 호흡 여정 · Cellular Respiration Journey</title>
 <style>
 /* ============================================================
@@ -272,6 +272,41 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
   .card h2{font-size:14px;margin-bottom:2px}
   .stages{gap:5px}
 }
+
+/* ---- tap-to-place (drag alternative) ---- */
+.mol.selected{outline:2px solid var(--accent);outline-offset:2px;
+  box-shadow:0 0 0 3px rgba(79,227,255,.25),0 0 18px rgba(79,227,255,.4);transform:translateY(-2px)}
+body.placing .slot:not(.correct),
+body.placing .node:not(.fixed):not(.correct){
+  border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 14px rgba(79,227,255,.25);cursor:pointer}
+body.placing .slot:not(.correct){animation:tapglow 1.1s ease-in-out infinite}
+@keyframes tapglow{50%{box-shadow:0 0 0 1px var(--accent),0 0 22px rgba(79,227,255,.5)}}
+
+/* ---- learn / concept modal (scrollable) ---- */
+.modal .card.learn{max-width:520px;text-align:left;max-height:86vh;max-height:86dvh;overflow:auto}
+.learn h2{font-size:20px;margin-bottom:6px}
+.learn h3{font-size:14px;margin:14px 0 5px;color:var(--accent)}
+.learn p{font-size:13px;line-height:1.6;color:var(--ink-dim);margin:5px 0}
+.learn table{width:100%;border-collapse:collapse;margin:6px 0;font-size:12.5px}
+.learn th,.learn td{border:1px solid var(--glass-brd);padding:5px 8px;text-align:center}
+.learn th{background:rgba(120,180,255,.12);color:var(--ink)}
+.learn td:first-child{text-align:left;color:var(--ink)}
+.learn td b{color:var(--atp)}
+.learn .cav{font-size:11.5px;color:var(--ink-dim);background:rgba(255,212,81,.07);
+  border:1px dashed rgba(255,212,81,.3);border-radius:10px;padding:8px 11px;margin-top:12px;line-height:1.55}
+.learn .cav b{color:var(--atp)}
+.learn .closebtn{margin-top:14px}
+
+/* ---- fuel readout on Stage 3 ---- */
+.fuel{font-size:11px;color:var(--ink-dim);margin:2px 0 0;flex:0 0 100%;order:-1}
+.fuel b{color:var(--nadh)}.fuel i{color:var(--fadh);font-style:normal}
+.btn .cnt{font-variant-numeric:tabular-nums}
+
+/* ---- respect reduced motion ---- */
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important}
+  .orb{animation:none}.arrow{animation:none}
+}
 </style>
 </head>
 <body>
@@ -283,8 +318,9 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
       <div class="orb"></div>
       <h1>세포 호흡 여정<small>CELLULAR RESPIRATION JOURNEY</small></h1>
     </div>
+    <div class="snd" id="learnBtn" title="개념 정리 보기" style="margin-left:auto">📖</div>
     <div class="snd" id="sndBtn" title="소리 켜기/끄기">🔊</div>
-    <div class="score-pill"><span class="atp-ico"></span>ATP <span id="scoreVal">0</span></div>
+    <div class="score-pill" style="margin-left:0"><span class="atp-ico"></span>ATP <span id="scoreVal">0</span></div>
   </header>
 
   <div class="stages" id="tabs">
@@ -385,6 +421,7 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
       <div class="etcWrap"><canvas id="etc"></canvas></div>
 
       <div class="etcHud">
+        <div class="fuel">연료(1·2단계에서 생산): 남은 <b>NADH <span id="fuelN">10</span></b> · <i>FADH₂ <span id="fuelF">2</span></i></div>
         <div class="gauge">
           <div class="lab"><span>H⁺ 농도 기울기</span><b><span id="h2v">0</span>%</b></div>
           <div class="bar h2"><span id="h2bar"></span></div>
@@ -395,8 +432,8 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
         </div>
       </div>
       <div class="etcbtns" style="margin-top:9px">
-        <button class="btn nadh" id="fireNADH">🔵 NADH 산화 (복합체 I)</button>
-        <button class="btn fadh" id="fireFADH">🟢 FADH₂ 산화 (복합체 II)</button>
+        <button class="btn nadh" id="fireNADH">🔵 NADH 산화 (복합체 I) <span class="cnt" id="cntN">×10</span></button>
+        <button class="btn fadh" id="fireFADH">🟢 FADH₂ 산화 (복합체 II) <span class="cnt" id="cntF">×2</span></button>
         <button class="btn gold" id="chemio" disabled>🌀 화학 삼투!</button>
         <button class="btn ghost" id="reset3">초기화</button>
       </div>
@@ -405,6 +442,10 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
 </div>
 
 <div id="toast"></div>
+
+<div class="modal" id="learnModal">
+  <div class="card box learn" id="learnBody"></div>
+</div>
 
 <div class="modal" id="finModal">
   <div class="card box">
@@ -428,11 +469,30 @@ path.spoke.lit{stroke:var(--citrate);stroke-width:3.5;filter:drop-shadow(0 0 6px
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// unbiased Fisher–Yates shuffle (returns a new array)
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches;
+// electron carriers produced upstream, per glucose (glycolysis 2 + pyruvate ox. 2 + TCA 6 = 10 NADH; TCA 2 FADH₂)
+const NADH_TOTAL=10, FADH2_TOTAL=2;
 let score=0;
 const stageDone=[false,false,false];
 
+/* ---------- progress persistence ---------- */
+const SAVE_KEY='cr_progress_v1';
+function saveProgress(){
+  try{localStorage.setItem(SAVE_KEY,JSON.stringify({score,done:stageDone}));}catch(e){}
+}
+function loadProgress(){
+  try{
+    const d=JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); if(!d)return;
+    score=d.score||0; $('#scoreVal').textContent=score;
+    (d.done||[]).forEach((v,i)=>{ if(v){ stageDone[i]=true; $$('.stage-tab')[i].classList.add('done'); if(i+1<3)unlock(i+1); } });
+  }catch(e){}
+}
+function clearProgress(){ try{localStorage.removeItem(SAVE_KEY);}catch(e){} }
+
 function addScore(n,fromEl){
-  score+=n; $('#scoreVal').textContent=score;
+  score+=n; $('#scoreVal').textContent=score; saveProgress();
   const pill=$('.score-pill').getBoundingClientRect();
   const sx=fromEl?fromEl.getBoundingClientRect().left+20:innerWidth/2;
   const sy=fromEl?fromEl.getBoundingClientRect().top:innerHeight/2;
@@ -456,11 +516,13 @@ function toast(msg,type='info'){
     ps=[...Array(90)].map(()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.6+.3,
       a:Math.random(),s:Math.random()*.02+.004}))}
   rs();addEventListener('resize',rs);
-  (function loop(){x.clearRect(0,0,W,H);
-    for(const p of ps){p.a+=p.s;const g=(Math.sin(p.a)+1)/2;
+  function paint(){x.clearRect(0,0,W,H);
+    for(const p of ps){const g=(Math.sin(p.a)+1)/2;
       x.globalAlpha=.15+g*.7;x.fillStyle=g>.6?'#bff6ff':'#6f9ad6';
       x.beginPath();x.arc(p.x,p.y,p.r,0,7);x.fill()}
-    x.globalAlpha=1;requestAnimationFrame(loop)})();
+    x.globalAlpha=1;}
+  if(REDUCED_MOTION){paint();return;}   // static starfield, no twinkle loop
+  (function loop(){for(const p of ps)p.a+=p.s;paint();requestAnimationFrame(loop)})();
 })();
 
 /* ============================================================
@@ -526,26 +588,48 @@ function sizeWheel(){
 addEventListener('resize',()=>{ if($('#panel1').classList.contains('active'))sizeWheel(); });
 if(window.ResizeObserver){ const _wa=$('.wheelArea'); if(_wa) new ResizeObserver(()=>{ if($('#panel1').classList.contains('active'))sizeWheel(); }).observe(_wa); }
 $$('.stage-tab').forEach(t=>t.onclick=()=>goStage(+t.dataset.stage));
-function markDone(i){stageDone[i]=true;$$('.stage-tab')[i].classList.add('done');}
+function markDone(i){stageDone[i]=true;$$('.stage-tab')[i].classList.add('done');saveProgress();}
 
 /* ============================================================
    DRAG & DROP ENGINE  (pointer based, works on touch)
    ============================================================ */
+/* ---- tap-to-place selection (drag alternative for touch / accessibility) ---- */
+let selMol=null;
+function clearSel(){ if(selMol)selMol.classList.remove('selected'); selMol=null; document.body.classList.remove('placing'); }
+function selectMol(el){
+  if(el.dataset.placed)return;
+  if(selMol===el){clearSel();return;}
+  clearSel(); selMol=el; el.classList.add('selected'); document.body.classList.add('placing');
+  Audio2.blip(660,.06,'sine',.12);
+}
+// a tap on a valid target places the currently-selected molecule there
+document.addEventListener('pointerdown',e=>{
+  if(!selMol)return;
+  const t=e.target.closest('[data-accept]');
+  if(t && !t.dataset.placed){ const el=selMol,drop=el._onDrop; clearSel(); drop&&drop(el,t); e.preventDefault(); return; }
+  if(!e.target.closest('.mol')) clearSel();   // tapping empty space cancels
+});
+
 function makeDraggable(el,onDrop){
+  el._onDrop=onDrop;   // remembered so tap-to-place can reuse it
   el.addEventListener('pointerdown',e=>{
     if(el.dataset.placed)return;
     e.preventDefault();
     const r=el.getBoundingClientRect();
-    const ghost=el.cloneNode(true);
-    ghost.style.cssText+=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;
-      z-index:100;pointer-events:none;transform:scale(1.06);box-shadow:0 18px 44px rgba(0,0,0,.6)`;
-    document.body.appendChild(ghost);
-    el.classList.add('drag');
-    const ox=e.clientX-r.left, oy=e.clientY-r.top;
-    Audio2.blip(660,.06,'sine',.12);
-    let curTarget=null;
+    const sx0=e.clientX, sy0=e.clientY, ox=e.clientX-r.left, oy=e.clientY-r.top;
+    let ghost=null, moved=false, curTarget=null;
     const targets=$$('[data-accept],.node:not(.fixed)').filter(t=>!t.dataset.placed);
+    function startDrag(){
+      moved=true; clearSel();
+      ghost=el.cloneNode(true);
+      ghost.style.cssText+=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;
+        z-index:100;pointer-events:none;transform:scale(1.06);box-shadow:0 18px 44px rgba(0,0,0,.6)`;
+      document.body.appendChild(ghost);
+      el.classList.add('drag');
+      Audio2.blip(660,.06,'sine',.12);
+    }
     function move(ev){
+      if(!moved){ if(Math.hypot(ev.clientX-sx0,ev.clientY-sy0)<6)return; startDrag(); }
       ghost.style.left=(ev.clientX-ox)+'px';ghost.style.top=(ev.clientY-oy)+'px';
       let hit=null;
       for(const t of targets){const b=t.getBoundingClientRect();
@@ -556,7 +640,8 @@ function makeDraggable(el,onDrop){
     function up(ev){
       document.removeEventListener('pointermove',move);
       document.removeEventListener('pointerup',up);
-      ghost.remove();el.classList.remove('drag');
+      if(!moved){ selectMol(el); return; }        // no drag → treat as tap-select
+      ghost&&ghost.remove();el.classList.remove('drag');
       curTarget&&curTarget.classList.remove('over');
       if(curTarget)onDrop(el,curTarget);
     }
@@ -592,7 +677,7 @@ function buildStage1(){
     s.innerHTML='?<small>'+(s.dataset.accept==='pyruvate3'?'이동한 피루브산 C₃':
       s.dataset.accept==='acetyl'?'아세틸 CoA C₂':'피루브산 C₃')+'</small>';});
   // shuffle molecules
-  const arr=[...S1.molecules].sort(()=>Math.random()-.5);
+  const arr=shuffle(S1.molecules);
   arr.forEach(m=>pool.insertAdjacentHTML('beforeend',molHTML(m)));
   $$('#pool1 .mol').forEach(el=>makeDraggable(el,dropStage1));
 }
@@ -624,7 +709,8 @@ function dropStage1(el,slot){
     }
   }
   // 피루브산 산화는 ATP를 직접 만들지 않음 (NADH·CO₂만 생성) → 점수 가산 없음
-  if(need==='acetyl'){revealBP('#bp2',[['1 CO₂','var(--co2)'],['1 NADH','var(--nadh)']]);}
+  // 포도당당 피루브산 2분자가 산화되므로 ×2
+  if(need==='acetyl'){revealBP('#bp2',[['2 CO₂ (×2)','var(--co2)'],['2 NADH (×2)','var(--nadh)']]);}
   checkStage1();
 }
 function revealBP(sel,items){
@@ -690,7 +776,7 @@ function buildStage2(){
   });
   // pool (shuffled, excluding fixed)
   const pool=$('#pool2');pool.innerHTML='';
-  const items=S2.nodes.filter(n=>!n.fixed).sort(()=>Math.random()-.5);
+  const items=shuffle(S2.nodes.filter(n=>!n.fixed));
   items.forEach(m=>pool.insertAdjacentHTML('beforeend',molHTML(m)));
   $$('#pool2 .mol').forEach(el=>makeDraggable(el,dropStage2));
   sizeWheel();
@@ -769,7 +855,9 @@ function completeStage2(){
   // energy burst ring
   const wc=$('.wheelCenter');wc.animate([{transform:'translate(-50%,-50%) scale(1)'},
     {transform:'translate(-50%,-50%) scale(1.4)'},{transform:'translate(-50%,-50%) scale(1)'}],{duration:700});
-  toast('순환 완성! 옥살아세트산 재생 → +NADH, 회로가 계속 돕니다 🔄','good');
+  // 포도당 1개당 TCA 회로는 2회전 → 기질수준 인산화 ATP 총 2개 (앞서 1개 가산, 여기서 2회전분 1개)
+  addScore(1,$('.wheelCenter'));
+  toast('순환 완성! 옥살아세트산 재생 → +NADH. 포도당당 2회전 (기질 ATP 총 2) 🔄','good');
   $('#next2').disabled=false;unlock(2);markDone(1);
 }
 $('#reset2').onclick=buildStage2;
@@ -820,7 +908,7 @@ const ETC=(function(){
       for(const p of protons){
         p.x*=rx; p.y*=ry;
         if(p.hx!=null)p.hx*=rx; if(p.hy!=null)p.hy*=ry;
-        if(p.target!=null)p.target*=ry; p.r*=Math.min(rx,ry);
+        if(p.targetY!=null)p.targetY*=ry; if(p.channelX!=null)p.channelX*=rx; p.r*=Math.min(rx,ry);
       }
       electrons=[]; atpParticles=[]; shockwaves=[]; // clear short-lived items
     }
@@ -835,12 +923,21 @@ const ETC=(function(){
   let shockwaves=[];
   let waterDrops=[];     // H2O formed at Complex IV
   const H2_MAX=100;
+  // finite fuel carried from stages 1–2 (per glucose). Firing everything (10×3 + 2×2 = 34 pumps) fills the gradient.
+  let fuelN=NADH_TOTAL, fuelF=FADH2_TOTAL;
+  function updateFuel(){
+    $('#fuelN').textContent=fuelN; $('#fuelF').textContent=fuelF;
+    $('#cntN').textContent='×'+fuelN; $('#cntF').textContent='×'+fuelF;
+    $('#fireNADH').disabled = fuelN<=0 || vortexActive;
+    $('#fireFADH').disabled = fuelF<=0 || vortexActive;
+  }
 
   function reset(){
     electrons=[];protons=[];atpParticles=[];shockwaves=[];waterDrops=[];
     h2level=0;atpMade=0;vortex=0;vortexActive=false;
-    $('#fireNADH').disabled=false;$('#fireFADH').disabled=false;$('#chemio').disabled=true;
-    updateHud();
+    fuelN=NADH_TOTAL; fuelF=FADH2_TOTAL;
+    $('#chemio').disabled=true;
+    updateFuel(); updateHud();
     // seed some ambient protons in matrix
     for(let i=0;i<10;i++)spawnProton(memBot + H*0.07 + Math.random()*H*0.28, false);
   }
@@ -850,7 +947,11 @@ const ETC=(function(){
       space:inSpace,r:PR*(0.85+Math.random()*0.3), glow:Math.random()});
   }
   function fireElectron(source){   // source: 'NADH' (Complex I) or 'FADH2' (Complex II)
-    if(started===false)return;
+    if(started===false||vortexActive)return;
+    // consume one carrier from the finite pool produced upstream
+    if(source==='FADH2'){ if(fuelF<=0){toast('FADH₂를 모두 사용했어요','info');return;} fuelF--; }
+    else               { if(fuelN<=0){toast('NADH를 모두 사용했어요','info');return;} fuelN--; }
+    updateFuel();
     const cI  =complexes.find(c=>c.label==='I');
     const cII =complexes.find(c=>c.matrixSide);
     const cIII=complexes.find(c=>c.label==='III');
@@ -1068,7 +1169,7 @@ const ETC=(function(){
         e.seg++;e.t=0;
         const wp=e.path[e.seg];
         if(wp){
-          if(wp.pump){ pumpAt(wp.x); h2level=clamp(h2level+H2_MAX/12,0,H2_MAX); updateHud(); }
+          if(wp.pump){ pumpAt(wp.x); h2level=clamp(h2level+H2_MAX/34,0,H2_MAX); updateHud(); }
           if(wp.water){ formWater(wp.x); e.dead=true; }   // electron ends as water, not off-screen
         }
       }
@@ -1184,15 +1285,61 @@ $('#restartAll').onclick=()=>{
   score=0;$('#scoreVal').textContent=0;
   stageDone.fill(false);
   $$('.stage-tab').forEach((t,i)=>{t.classList.remove('done');if(i>0)t.classList.add('locked');});
+  clearProgress();
   buildStage1();buildStage2();ETC.reset();
   $('#finModal').classList.remove('show');goStage(0);
 };
+
+/* ============================================================
+   LEARN / CONCEPT MODAL  (study-mode reference per stage)
+   ============================================================ */
+const LEARN={
+  0:{title:'1단계 · 해당과정 + 피루브산 산화',
+    body:`<p>포도당(C₆)이 세포질에서 <b>피루브산 2분자(C₃)</b>로 분해되고, 피루브산은 미토콘드리아 기질로 들어가 <b>아세틸 CoA(C₂)</b>로 산화됩니다.</p>
+    <table><tr><th>과정</th><th>ATP(직접)</th><th>NADH</th><th>FADH₂</th><th>CO₂</th></tr>
+    <tr><td>해당과정</td><td><b>2</b></td><td>2</td><td>0</td><td>0</td></tr>
+    <tr><td>피루브산 산화 (×2)</td><td>0</td><td>2</td><td>0</td><td>2</td></tr></table>
+    <p>해당과정의 ATP 2개는 <b>기질수준 인산화</b>로 직접 만들어집니다. NADH는 3단계에서 ATP로 전환돼요.</p>`},
+  1:{title:'2단계 · TCA 회로 (시트르산 회로)',
+    body:`<p>아세틸 CoA(C₂)가 옥살아세트산(C₄)과 결합해 시트르산(C₆)이 되고, 한 바퀴 돌며 CO₂를 방출한 뒤 옥살아세트산이 재생됩니다. 포도당당 <b>2회전</b> 돕니다.</p>
+    <table><tr><th></th><th>1회전</th><th>포도당당(×2)</th></tr>
+    <tr><td>ATP(직접·GTP)</td><td>1</td><td><b>2</b></td></tr>
+    <tr><td>NADH</td><td>3</td><td>6</td></tr>
+    <tr><td>FADH₂</td><td>1</td><td>2</td></tr>
+    <tr><td>CO₂</td><td>2</td><td>4</td></tr></table>`},
+  2:{title:'3단계 · 전자전달계 & 화학삼투',
+    body:`<p>NADH·FADH₂가 전자를 복합체에 전달하면 H⁺가 막 사이 공간으로 능동수송돼 <b>농도 기울기</b>가 쌓입니다. 전자는 복합체 IV에서 O₂와 결합해 <b>물(H₂O)</b>이 됩니다. 축적된 H⁺가 ATP 합성효소를 통해 촉진확산되며 <b>ATP를 대량 합성</b>(화학삼투)합니다.</p>
+    <table><tr><th>연료</th><th>펌프 자리</th><th>전통적 ATP</th></tr>
+    <tr><td>NADH (10)</td><td>I·III·IV</td><td>~3개씩 = 30</td></tr>
+    <tr><td>FADH₂ (2)</td><td>III·IV</td><td>~2개씩 = 4</td></tr></table>
+    <p>전자전달계 합계 <b>≈ 34 ATP</b>.</p>`}
+};
+function totalTable(){return `<h3>포도당 1분자 총 정리</h3>
+  <table><tr><th>단계</th><th>직접 ATP</th><th>NADH</th><th>FADH₂</th></tr>
+  <tr><td>해당과정</td><td>2</td><td>2</td><td>0</td></tr>
+  <tr><td>피루브산 산화</td><td>0</td><td>2</td><td>0</td></tr>
+  <tr><td>TCA 회로 (×2)</td><td>2</td><td>6</td><td>2</td></tr>
+  <tr><td>전자전달계</td><td><b>~34</b></td><td>—</td><td>—</td></tr>
+  <tr><td><b>합계</b></td><td colspan="3"><b>≈ 38 ATP</b></td></tr></table>`;}
+function openLearn(){
+  const i=[...$$('.panel')].findIndex(p=>p.classList.contains('active'));
+  const L=LEARN[i]||LEARN[0];
+  $('#learnBody').innerHTML=`<h2>📖 ${L.title}</h2>${L.body}${totalTable()}
+    <p class="cav"><b>숫자 참고:</b> 여기서는 고교 교과서 기준 <b>총 ≈38 ATP</b>(NADH 3·FADH₂ 2 환산)로 계산합니다.
+    실제 세포에서는 수송 비용 등으로 <b>약 30–32 ATP</b>로 보며, 해당과정 NADH의 셔틀에 따라 36~38로도 계산합니다.</p>
+    <div style="text-align:center"><button class="btn closebtn" id="learnClose">닫기</button></div>`;
+  $('#learnModal').classList.add('show');
+  $('#learnClose').onclick=()=>$('#learnModal').classList.remove('show');
+}
+$('#learnBtn').onclick=openLearn;
+$('#learnModal').addEventListener('click',e=>{ if(e.target.id==='learnModal')e.target.classList.remove('show'); });
 
 /* ============================================================
    INIT
    ============================================================ */
 buildStage1();
 buildStage2();
+loadProgress();   // restore ATP + unlocked stages after a reload
 </script>
 </body>
 </html>
